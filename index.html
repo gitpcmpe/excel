@@ -6,210 +6,179 @@
   <title>Excel/CSV Viewer & Editor</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
-    :root{ --bg:#f5f7fb; --card:#ffffff; --accent:#4f46e5; --muted:#6b7280; }
-    body{font-family:Inter, system-ui; background:linear-gradient(180deg,var(--bg),#eef2ff); margin:0;padding:28px;color:#0f172a}
+    :root{--bg:#f5f7fb;--card:#fff;--accent:#4f46e5;--muted:#6b7280;}
+    body{font-family:Inter, system-ui;background:linear-gradient(180deg,var(--bg),#eef2ff);margin:0;padding:28px;color:#0f172a}
     .container{max-width:1100px;margin:0 auto}
     header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
     h1{font-size:20px;margin:0}
     .subtitle{color:var(--muted);font-size:13px}
     .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-bottom:16px}
     .row{display:flex;gap:12px;align-items:center; flex-wrap:wrap;}
-
-    /* File input area */
     input[type=file]{display:none}
     .btn{background:var(--accent);color:white;padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
     .file-list{max-height:120px;overflow:auto;padding:8px;border-radius:8px;border:1px dashed rgba(15,23,42,0.06);background:#fbfbff; display:flex; flex-wrap:wrap; gap:6px;}
     .file-item{padding:6px 10px;border-radius:8px;background:#fff;display:flex;align-items:center; cursor:pointer; font-size:14px; width:48%;}
     .file-item.active{outline:2px solid rgba(79,70,229,0.12)}
     .grid-wrap{margin-top:12px;max-height:560px;border-radius:10px;border:1px solid rgba(15,23,42,0.04);overflow:auto;background:#fff}
-
     table.grid{border-collapse:collapse;width:100%;font-size:13px}
     table.grid th, table.grid td{border:1px solid rgba(15,23,42,0.06);padding:4px 6px;min-width:40px;white-space:nowrap}
     table.grid th{background:#fbfbff;font-weight:700; cursor:pointer}
-
     input.cmd{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(15,23,42,0.06)}
-
     footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white;display:flex;align-items:center;justify-content:center;font-weight:700">XL</div>
-      <div>
-        <h1>Excel / CSV / Text Viewer & Editor</h1>
-        <div class="subtitle">Excel, CSV, TXT 파일을 불러와서 편집하고 명령어 실행이 가능합니다.</div>
-      </div>
-    </header>
+<div class="container">
+  <header>
+    <div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white;display:flex;align-items:center;justify-content:center;font-weight:700">XL</div>
+    <div>
+      <h1>Excel / CSV / Text Viewer & Editor</h1>
+      <div class="subtitle">Excel, CSV, TXT 파일을 불러와서 편집하고 명령어 실행이 가능합니다.</div>
+    </div>
+  </header>
 
-    <!-- 파일 선택 영역 -->
-    <section class="card">
-      <div class="row">
-        <!-- label과 file input 연결 (중요!!) -->
-        <label for="fileInput" class="btn">파일 선택</label>
-        <input id="fileInput" type="file" accept=".csv, .xlsx, .xls, .txt" multiple />
-        <div id="fileList" class="file-list"></div>
-      </div>
-    </section>
+  <!-- 파일 선택 -->
+  <section class="card">
+    <div class="row">
+      <label for="fileInput" class="btn">파일 선택</label>
+      <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,.txt" multiple />
+      <div id="fileList" class="file-list"></div>
+    </div>
+  </section>
 
-    <!-- 명령어 입력 -->
-    <section class="card">
-      <div class="row">
-        <input id="cmdInput" class="cmd" placeholder="예: replace old -> new / find:value / 자연어 명령" />
-        <button id="cmdRun" class="btn">실행</button>
-      </div>
-    </section>
+  <!-- 명령어 입력 -->
+  <section class="card">
+    <div class="row">
+      <input id="cmdInput" class="cmd" placeholder="예: replace old -> new / find:value / 자연어 명령" />
+      <button id="cmdRun" class="btn">실행</button>
+    </div>
+  </section>
 
-    <!-- Output 영역 -->
-    <section class="card">
-      <div id="resultArea" class="grid-wrap"></div>
-    </section>
+  <!-- Output -->
+  <section class="card">
+    <div id="resultArea" class="grid-wrap"></div>
+  </section>
 
-    <footer>파일 선택 → 편집 또는 명령어 실행</footer>
-  </div>
+  <footer>파일 선택 → 편집 또는 명령어 실행</footer>
+</div>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-
   const fileInput = document.getElementById("fileInput");
   const fileList = document.getElementById("fileList");
   const resultArea = document.getElementById("resultArea");
-  const cmdRun = document.getElementById("cmdRun");
   const cmdInput = document.getElementById("cmdInput");
+  const cmdRun = document.getElementById("cmdRun");
 
   let filesData = [];
   let activeId = null;
   let fileCounter = 0;
 
-  /* -------------------------
-     파일 선택 기능
-  --------------------------*/
   fileInput.addEventListener("change", handleFiles);
 
-  function handleFiles(e) {
+  function handleFiles(e){
     const list = Array.from(e.target.files || []);
-    if (!list.length) return;
-
-    list.forEach(file => {
+    if(!list.length) return;
+    list.forEach(file=>{
       const id = ++fileCounter;
       const reader = new FileReader();
-
-      reader.onload = ev => {
+      reader.onload = ev=>{
         let workbook;
-        try {
-          if (file.name.endsWith(".csv"))
-            workbook = XLSX.read(ev.target.result, { type: "string" });
+        try{
+          if(file.name.endsWith(".csv"))
+            workbook = XLSX.read(ev.target.result,{type:"string"});
           else
-            workbook = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
-        } catch (err) {
-          alert("파일 읽기 오류: " + file.name);
-          return;
-        }
+            workbook = XLSX.read(new Uint8Array(ev.target.result),{type:"array"});
+        }catch(err){ alert("파일 읽기 오류: "+file.name); return; }
 
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+        const rows = XLSX.utils.sheet_to_json(sheet,{header:1,raw:false});
 
-        filesData.push({
-          id,
-          name: file.name,
-          rows,
-          history: [JSON.stringify(rows)],
-        });
-
+        filesData.push({id,name:file.name,rows,history:[JSON.stringify(rows)]});
         renderFileList();
-        if (!activeId) setActive(id);
+        if(!activeId) setActive(id);
       };
-
-      if (file.name.endsWith(".csv")) reader.readAsText(file, "utf-8");
+      if(file.name.endsWith(".csv")) reader.readAsText(file,"utf-8");
       else reader.readAsArrayBuffer(file);
     });
-
     fileInput.value = "";
   }
 
-  function renderFileList() {
-    fileList.innerHTML = "";
-    filesData.forEach(f => {
+  function renderFileList(){
+    fileList.innerHTML="";
+    filesData.forEach(f=>{
       const item = document.createElement("div");
-      item.className = "file-item" + (f.id === activeId ? " active" : "");
+      item.className = "file-item" + (f.id===activeId?" active":"");
       item.textContent = f.name;
-      item.onclick = () => setActive(f.id);
+      item.onclick = ()=>setActive(f.id);
       fileList.appendChild(item);
     });
   }
 
-  function setActive(id) {
+  function setActive(id){
     activeId = id;
     renderFileList();
     renderGrid();
   }
 
-  function renderGrid() {
-    const f = filesData.find(x => x.id === activeId);
-    if (!f) return;
-
-    resultArea.innerHTML = "";
+  function renderGrid(){
+    const f = filesData.find(x=>x.id===activeId);
+    if(!f) return;
+    resultArea.innerHTML="";
     const table = document.createElement("table");
-    table.className = "grid";
-
+    table.className="grid";
     const rows = f.rows;
-    const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
+    const cols = rows.reduce((m,r)=>Math.max(m,r.length),0);
 
     const thead = document.createElement("thead");
     const trh = document.createElement("tr");
-    trh.innerHTML = "<th>#</th>" + [...Array(cols)].map((_, i) => `<th>${String.fromCharCode(65+i)}</th>`).join("");
+    trh.innerHTML="<th>#</th>"+[...Array(cols)].map((_,i)=>`<th>${String.fromCharCode(65+i)}</th>`).join("");
     thead.appendChild(trh);
     table.appendChild(thead);
 
     const tbody = document.createElement("tbody");
-    rows.forEach((r, ri) => {
+    rows.forEach((r,ri)=>{
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${ri+1}</td>` +
-        [...Array(cols)].map((_, ci) => `<td contenteditable="true">${r[ci] || ""}</td>`).join("");
+      tr.innerHTML=`<td>${ri+1}</td>`+[...Array(cols)].map((_,ci)=>`<td contenteditable="true">${r[ci]||""}</td>`).join("");
       tbody.appendChild(tr);
     });
-
     table.appendChild(tbody);
     resultArea.appendChild(table);
   }
 
   /* -------------------------
-     명령어 실행 → Cloud Run API
+     명령어 실행 → 서버
   --------------------------*/
-  cmdRun.addEventListener("click", async () => {
+  cmdRun.addEventListener("click", async ()=>{
     const cmd = cmdInput.value.trim();
-    if (!cmd) return;
-
-    const f = filesData.find(x => x.id === activeId);
-    if (!f) return alert("활성화된 파일이 없습니다.");
-
-    try {
+    if(!cmd) return;
+    try{
       const res = await fetch("https://excel-ai-824156430566.asia-northeast3.run.app/ai-command", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: cmd, sheet: { rows: f.rows } })
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ command: cmd })  // sheet 제거
       });
 
       const data = await res.json();
       console.log("AI 응답:", data);
 
-      if (data.rows) {
+      if(data.rows){
+        const f = filesData.find(x=>x.id===activeId);
         f.history.push(JSON.stringify(f.rows));
         f.rows = data.rows;
         renderGrid();
-      } else if (data.message) {
-        alert("AI: " + data.message);
-      } else {
-        alert("AI 응답을 이해할 수 없습니다.");
       }
-
-    } catch (err) {
-      alert("AI 오류: " + err.message);
+      if(data.message){
+        alert("AI: "+data.message);
+      } else if(data.error){
+        alert("AI 오류: "+data.error);
+      }
+    }catch(err){
+      alert("AI 요청 중 오류: "+err.message);
     }
   });
 
 });
 </script>
-
 </body>
 </html>
