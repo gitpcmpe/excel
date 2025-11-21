@@ -49,7 +49,7 @@
   <!-- 명령어 입력 -->
   <section class="card">
     <div class="row">
-      <input id="cmdInput" class="cmd" placeholder="예: D열 오름차순 정렬 / B열 값 치환 / filter:value ..." />
+      <input id="cmdInput" class="cmd" placeholder="예: replace old -> new / find:value / 자연어 명령" />
       <button id="cmdRun" class="btn">실행</button>
     </div>
   </section>
@@ -146,23 +146,6 @@ document.addEventListener("DOMContentLoaded", () => {
     resultArea.appendChild(table);
   }
 
-  function sortColumn(rows, colLetter, order){
-    const colIndex = colLetter.charCodeAt(0) - 65;
-    rows.sort((a,b)=>{
-      const aVal = a[colIndex] || "";
-      const bVal = b[colIndex] || "";
-      if(order==="asc") return aVal.localeCompare(bVal, undefined, {numeric:true});
-      else return bVal.localeCompare(aVal, undefined, {numeric:true});
-    });
-  }
-
-  function replaceValue(rows, colLetter, target, replacement){
-    const colIndex = colLetter.charCodeAt(0) - 65;
-    rows.forEach(r=>{
-      if(r[colIndex]===target) r[colIndex]=replacement;
-    });
-  }
-
   /* -------------------------
      명령어 실행 → 서버
   --------------------------*/
@@ -175,24 +158,50 @@ document.addEventListener("DOMContentLoaded", () => {
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ command: cmd })
       });
+
       const data = await res.json();
       console.log("AI 응답:", data);
 
       const f = filesData.find(x=>x.id===activeId);
       if(!f) return;
 
-      if(data.ai_command){
-        const c = data.ai_command;
-        if(c.action==="sort_column") sortColumn(f.rows, c.column, c.order);
-        else if(c.action==="replace_value") replaceValue(f.rows, c.column, c.target, c.replacement);
-        // 추가 액션 구현 가능
+      const ai_command = data.ai_command || {};
+
+      /* -------------------------
+         JS에서 실제 rows 처리
+      --------------------------*/
+      if(ai_command.action === "sort_column") {
+        const colIndex = ai_command.column.charCodeAt(0) - 65;
+        f.rows.sort((a,b)=>{
+          const v1 = a[colIndex] || "";
+          const v2 = b[colIndex] || "";
+          return ai_command.order === "asc" ? v1.localeCompare(v2) : v2.localeCompare(v1);
+        });
         renderGrid();
-        alert(c.message);
-      } else if(data.message){
-        alert("AI: "+data.message);
-      } else if(data.error){
-        alert("AI 오류: "+data.error);
       }
+
+      if(ai_command.action === "replace_value") {
+        const colIndex = ai_command.column.charCodeAt(0) - 65;
+        f.rows.forEach(r=>{
+          if(r[colIndex] === ai_command.target) r[colIndex] = ai_command.replacement;
+        });
+        renderGrid();
+      }
+
+      if(ai_command.action === "filter") {
+        const colIndex = ai_command.column.charCodeAt(0) - 65;
+        if(ai_command.condition === "contains_only_english_characters") {
+          f.rows = f.rows.filter(row=>{
+            const val = row[colIndex] || "";
+            return /^[A-Za-z\s]+$/.test(val);
+          });
+        }
+        renderGrid();
+      }
+
+      if(data.message) alert("AI: "+data.message);
+      else if(data.error) alert("AI 오류: "+data.error);
+
     }catch(err){
       alert("AI 요청 중 오류: "+err.message);
     }
