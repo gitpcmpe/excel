@@ -25,6 +25,7 @@
     table.grid th{background:#fbfbff;font-weight:700; cursor:pointer}
     input.cmd{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(15,23,42,0.06)}
     footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
+    #jsonOutput{margin-top:12px;font-family:monospace;background:#f3f3f3;padding:8px;border-radius:6px;white-space:pre-wrap;overflow:auto;max-height:200px;}
   </style>
 </head>
 <body>
@@ -37,6 +38,7 @@
     </div>
   </header>
 
+  <!-- 파일 선택 -->
   <section class="card">
     <div class="row">
       <label for="fileInput" class="btn">파일 선택</label>
@@ -45,6 +47,7 @@
     </div>
   </section>
 
+  <!-- 명령어 입력 -->
   <section class="card">
     <div class="row">
       <input id="cmdInput" class="cmd" placeholder="예: replace old -> new / find:value / 자연어 명령" />
@@ -52,8 +55,10 @@
     </div>
   </section>
 
+  <!-- Output -->
   <section class="card">
     <div id="resultArea" class="grid-wrap"></div>
+    <div id="jsonOutput"></div>
   </section>
 
   <footer>파일 선택 → 편집 또는 명령어 실행</footer>
@@ -64,6 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const fileInput = document.getElementById("fileInput");
   const fileList = document.getElementById("fileList");
   const resultArea = document.getElementById("resultArea");
+  const jsonOutput = document.getElementById("jsonOutput");
   const cmdInput = document.getElementById("cmdInput");
   const cmdRun = document.getElementById("cmdRun");
 
@@ -143,75 +149,68 @@ document.addEventListener("DOMContentLoaded", () => {
     resultArea.appendChild(table);
   }
 
-  /* -------------------------
-     명령어 실행 → 서버
-  --------------------------*/
+  // -------------------------
+  // JS에서 실제 Excel 명령 처리
+  // -------------------------
+  function applyAICommand(f, cmd){
+    const ac = cmd.ai_command;
+    if(!ac || !ac.action) return;
+
+    const colIndex = ac.column ? ac.column.charCodeAt(0)-65 : -1;
+    if(colIndex<0) return;
+
+    if(ac.action==="sort_column"){
+      f.rows.sort((a,b)=>{
+        const valA = a[colIndex]||"";
+        const valB = b[colIndex]||"";
+        if(ac.order==="asc") return valA.localeCompare(valB, undefined, {numeric:true});
+        else return valB.localeCompare(valA, undefined, {numeric:true});
+      });
+    } else if(ac.action==="replace_value"){
+      for(let r of f.rows){
+        if(r[colIndex]===ac.target) r[colIndex]=ac.replacement;
+      }
+    } else if(ac.action==="filter"){
+      // criteria를 JS로 해석
+      const crit = ac.criteria || ac.criteria_js || "";
+      f.rows = f.rows.filter(row=>{
+        const val = row[colIndex]||"";
+        if(crit==="ISNUMBER") return !isNaN(val);
+        if(crit==="ISSTRING") return typeof val==="string";
+        if(crit.includes("english")) return /^[A-Za-z\s]+$/.test(val);
+        return true; // 기본: 유지
+      });
+    }
+
+    // 메시지 표시
+    alert(ac.message || cmd.message);
+  }
+
+  // -------------------------
+  // 명령어 실행 → 서버
+  // -------------------------
   cmdRun.addEventListener("click", async ()=>{
-    const cmd = cmdInput.value.trim();
-    if(!cmd) return;
+    const cmdText = cmdInput.value.trim();
+    if(!cmdText) return;
+    const f = filesData.find(x=>x.id===activeId);
+    if(!f) return alert("활성화된 파일이 없습니다.");
+
     try{
-      const res = await fetch("https://excel-ai-824156430566.asia-northeast3.run.app/ai-command", {
+      const res = await fetch("https://excel-ai-824156430566.asia-northeast3.run.app/ai-command",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ command: cmd })
+        body:JSON.stringify({command: cmdText})
       });
 
       const data = await res.json();
       console.log("AI 응답:", data);
+      jsonOutput.textContent = JSON.stringify(data, null, 2);
 
-      const f = filesData.find(x=>x.id===activeId);
-      if(!f) return;
-
-      const ai_command = data.ai_command || {};
-
-      /* -------------------------
-         sort 처리
-      --------------------------*/
-      if(ai_command.action === "sort_column") {
-        const colIndex = ai_command.column.charCodeAt(0) - 65;
-        if(ai_command.order === "asc") {
-          f.rows.sort((a,b)=> (a[colIndex]||"").localeCompare(b[colIndex]||""));
-        } else if(ai_command.order === "desc") {
-          f.rows.sort((a,b)=> (b[colIndex]||"").localeCompare(a[colIndex]||""));
-        }
+      if(data.ai_command){
+        f.history.push(JSON.stringify(f.rows));
+        applyAICommand(f, data);
         renderGrid();
       }
-
-      /* -------------------------
-         replace 처리
-      --------------------------*/
-      if(ai_command.action === "replace_value") {
-        const colIndex = ai_command.column.charCodeAt(0) - 65;
-        f.rows = f.rows.map(r=>{
-          if(r[colIndex] === ai_command.target) r[colIndex] = ai_command.replacement;
-          return r;
-        });
-        renderGrid();
-      }
-
-      /* -------------------------
-         filter 처리
-      --------------------------*/
-      if(ai_command.action === "filter") {
-        const colIndex = ai_command.column.charCodeAt(0) - 65;
-        if(ai_command.criteria) {
-          const crit = ai_command.criteria;
-
-          // 영어 문자만 남기기
-          if(crit.toLowerCase().includes("english") || crit.includes("FIND")) {
-            f.rows = f.rows.filter(row=>{
-              const val = row[colIndex] || "";
-              return /^[A-Za-z\s]+$/.test(val);
-            });
-          }
-
-          // TODO: 다른 criteria 처리 가능
-        }
-        renderGrid();
-      }
-
-      if(data.message) alert("AI: "+data.message);
-      else if(data.error) alert("AI 오류: "+data.error);
 
     }catch(err){
       alert("AI 요청 중 오류: "+err.message);
