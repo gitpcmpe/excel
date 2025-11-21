@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Excel/CSV Viewer & Editor</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#ffffff; --accent:#4f46e5; --muted:#6b7280;
+    }
+    body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:linear-gradient(180deg,var(--bg),#eef2ff); margin:0;padding:28px;color:#0f172a}
+    .container{max-width:1100px;margin:0 auto}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+    h1{font-size:20px;margin:0}
+    .subtitle{color:var(--muted);font-size:13px}
+
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-bottom:16px}
+    .row{display:flex;gap:12px;align-items:center; flex-wrap:wrap;}
+    .col{display:flex;flex-direction:column;gap:8px}
+
+    /* File input area */
+    .file-area{display:flex;gap:12px;align-items:center; flex-wrap:wrap;}
+    .btn{background:var(--accent);color:white;padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(79,70,229,0.12)}
+    input[type=file]{display:none}
+    .file-list{max-height:120px;overflow:auto;padding:8px;border-radius:8px;border:1px dashed rgba(15,23,42,0.06);background:#fbfbff; display:flex; flex-wrap:wrap; gap:6px;}
+    .file-item{padding:6px 10px;border-radius:8px;background:linear-gradient(180deg,#fff,#fbfbff);display:flex;align-items:center; cursor:pointer; font-size:14px; width:48%;}
+    .file-item.active{outline:2px solid rgba(79,70,229,0.12)}
+    .controls{display:flex;gap:8px;align-items:center}
+
+    /* toolbar */
+    .toolbar{display:flex;gap:8px;align-items:center}
+    .icon-btn{background:#f8fafc;border-radius:8px;padding:8px;border:1px solid rgba(15,23,42,0.03);cursor:pointer}
+
+    /* grid */
+    .grid-wrap{margin-top:12px;border-radius:10px;border:1px solid rgba(15,23,42,0.04);overflow:auto;background:linear-gradient(180deg,#fff,#fcfcff)}
+    table.grid{border-collapse:collapse;width:100%;font-size:13px}
+    table.grid th, table.grid td{border:1px solid rgba(15,23,42,0.06);padding:4px 6px;min-width:40px;white-space:nowrap}
+    table.grid th{background:#fbfbff;font-weight:700; cursor:pointer}
+
+    .small{font-size:12px}
+    .muted{color:var(--muted)}
+
+    /* command input */
+    .cmd-area{display:flex;gap:8px; margin-top:4px;}
+    input.cmd{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(15,23,42,0.06)}
+
+    footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
+
+    @media (max-width:880px){.row{flex-direction:column;align-items:stretch}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+    <div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;color:white;font-weight:700">XL</div>
+    <div>
+        <h1>Excel / CSV / Text Viewer & Editor</h1>
+        <div class="subtitle">
+        Excel(.xlsx/.xls), CSV, 텍스트(.txt/.doc/.docx) 파일을 빠르게 열어보고 편집, 찾기/바꾸기, 다운로드할 수 있습니다.
+        </div>
+    </div>
+    </header>
+
+    <!-- 파일 선택 영역 -->
+    <section class="card">
+      <div class="row file-area">
+        <label class="btn" id="pickBtn">파일 선택</label>
+        <input id="fileInput" type="file" accept=".csv, .xlsx, .xls, .txt, .doc, .docx" multiple />
+        <div class="file-list" id="fileList" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- 명령어 입력 영역 -->
+    <section class="card">
+      <div class="row">
+        <button class="btn" style="pointer-events:none; width:100%;">Command</button>
+      </div>
+      <div class="row">
+        <div class="cmd-area">
+          <input id="cmdInput" class="cmd" placeholder="예: replace old -> new 또는 find:value 또는 자연어 명령어" />
+          <button class="btn ghost" id="cmdRun">실행</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Output + Data -->
+    <section class="card">
+      <div class="row" style="justify-content:flex-start; align-items:center; gap:12px; margin-bottom:8px;">
+        <button class="btn" style="pointer-events:none;">Output</button>
+        <div class="toolbar">
+          <button class="icon-btn" id="fontDec" title="글자 작게">A-</button>
+          <button class="icon-btn" id="fontInc" title="글자 크게">A+</button>
+          <button class="icon-btn" id="findBtn" title="찾기">🔎 찾기</button>
+          <button class="icon-btn" id="replaceBtn" title="바꾸기">🪄 바꾸기</button>
+          <button class="icon-btn" id="undoBtn" title="되돌리기">⤺ 되돌리기</button>
+          <button class="icon-btn" id="downloadBtn" title="다운로드">⬇️ 다운로드</button>
+          <button class="icon-btn" id="resetBtn" title="초기화">🔁 초기화</button>
+        </div>
+      </div>
+      <div id="resultArea" class="grid-wrap" style="max-height:560px"></div>
+    </section>
+
+    <footer class="muted">작동: 파일 선택 → 활성화 → 도구 사용 또는 명령어 실행. (기본 편집 가능)</footer>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+const filesData = [];
+let activeId = null;
+let fileCounter = 0;
+const fileInput = document.getElementById('fileInput');
+const pickBtn = document.getElementById('pickBtn');
+const fileList = document.getElementById('fileList');
+const resultArea = document.getElementById('resultArea');
+const cmdInput = document.getElementById('cmdInput');
+
+let sortState = {};
+let filterState = {};
+
+pickBtn.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', handleFiles);
+
+const fontDec = document.getElementById('fontDec');
+const fontInc = document.getElementById('fontInc');
+const findBtn = document.getElementById('findBtn');
+const replaceBtn = document.getElementById('replaceBtn');
+const undoBtn = document.getElementById('undoBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const resetBtn = document.getElementById('resetBtn');
+const cmdRun = document.getElementById('cmdRun');
+
+fontDec.addEventListener('click', ()=>changeFont(-1));
+fontInc.addEventListener('click', ()=>changeFont(1));
+findBtn.addEventListener('click', ()=>promptFind());
+replaceBtn.addEventListener('click', ()=>promptReplace());
+undoBtn.addEventListener('click', ()=>undo());
+downloadBtn.addEventListener('click', ()=>downloadActive());
+resetBtn.addEventListener('click', ()=>resetActive());
+cmdRun.addEventListener('click', ()=>runCommand(cmdInput.value.trim()));
+
+function handleFiles(e){
+  const list = Array.from(e.target.files || []);
+  if(!list.length) return;
+  pickBtn.textContent = '파일 추가 선택';
+  list.forEach(file=>{
+    if(filesData.some(f=>f.name===file.name)) return; // 중복 체크
+    const id = ++fileCounter;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      let workbook;
+      try{
+        if(file.name.endsWith('.csv')) workbook = XLSX.read(ev.target.result,{type:'string'});
+        else workbook = XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+      }catch(err){ alert('파일 읽기 오류: '+file.name); return; }
+      const firstSheet = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheet];
+      const json = XLSX.utils.sheet_to_json(sheet,{header:1,raw:false});
+      filesData.push({id,name:file.name,rows:json,history:[JSON.stringify(json)],fontSize:13,editable:true});
+      renderFileList();
+      if(filesData.length===1) setActive(filesData[0].id);
+    };
+    if(file.name.endsWith('.csv')) reader.readAsText(file,'utf-8'); else reader.readAsArrayBuffer(file);
+  });
+  fileInput.value='';
+}
+
+function renderFileList(){
+  fileList.innerHTML='';
+  filesData.forEach((f,i)=>{
+    const div=document.createElement('div');
+    div.className='file-item'+(f.id===activeId?' active':'');
+    div.innerHTML=`<span>file#${i+1} ${f.name}</span>`;
+    div.addEventListener('click', ()=>setActive(f.id));
+    fileList.appendChild(div);
+  });
+}
+
+function setActive(id){
+  activeId = id;
+  renderFileList();
+  renderGrid();
+}
+
+function applySortAndFilter(rows){
+  let newRows = [...rows];
+  Object.keys(filterState).forEach(c=>{
+    const allowed = filterState[c];
+    newRows = newRows.filter(r => allowed.has(r[c]));
+  });
+  const col = Object.keys(sortState)[0];
+  if(col!==undefined){
+    const dir = sortState[col];
+    newRows.sort((a,b)=>{
+      const x=a[col]??"", y=b[col]??"";
+      if(x<y) return dir==='asc'?-1:1;
+      if(x>y) return dir==='asc'?1:-1;
+      return 0;
+    });
+  }
+  return newRows;
+}
+
+function renderGrid(){
+  resultArea.innerHTML='';
+  const f = filesData.find(x=>x.id===activeId);
+  if(!f){ resultArea.innerHTML='<div style="padding:16px" class="muted">활성화된 파일이 없습니다.</div>'; return; }
+
+  const table=document.createElement('table'); table.className='grid';
+  const rows=applySortAndFilter(f.rows);
+  const cols=rows.reduce((m,r)=>Math.max(m,r.length||0),0);
+
+  const thead=document.createElement('thead'); 
+  const htr=document.createElement('tr');
+  const thIndex=document.createElement('th'); thIndex.textContent='#'; htr.appendChild(thIndex);
+  for(let c=0;c<cols;c++){ const th=document.createElement('th'); th.textContent=String.fromCharCode(65+c); htr.appendChild(th);}
+  thead.appendChild(htr); table.appendChild(thead);
+
+  const tbody=document.createElement('tbody');
+  rows.forEach((r,ri)=>{
+    const tr=document.createElement('tr');
+    const tdIndex=document.createElement('td'); tdIndex.textContent=ri+1; tdIndex.style.fontWeight='600'; tr.appendChild(tdIndex);
+    for(let c=0;c<cols;c++){
+      const td=document.createElement('td'); td.textContent=(r[c]!==undefined?r[c]:''); td.contentEditable=f.editable;
+      td.addEventListener('input', ()=>{ f.rows[ri][c]=td.textContent; });
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  table.style.fontSize=(f.fontSize||13)+'px';
+  resultArea.appendChild(table);
+
+  attachHeaderEvents(table, cols);
+}
+
+function attachHeaderEvents(table, cols){
+  const headers = table.querySelectorAll('th');
+  headers.forEach((th,index)=>{
+    if(index===0){
+      th.addEventListener('click', e=>{
+        if(e.ctrlKey){
+          const f=filesData.find(x=>x.id===activeId); if(!f) return;
+          const uniqueVals = [...new Set(f.rows.map(r=>r[0]))];
+          const picked = prompt("필터할 값을 쉼표로 선택:\n"+uniqueVals.join(", "));
+          if(picked===null) return;
+          filterState[0] = new Set(picked.split(",").map(v=>v.trim()));
+          renderGrid();
+        }
+      });
+      return;
+    }
+    th.addEventListener('click', e=>{
+      const colIndex=index-1;
+      const f=filesData.find(x=>x.id===activeId); if(!f) return;
+      if(e.ctrlKey){
+        const uniqueVals = [...new Set(f.rows.map(r=>r[colIndex]))];
+        const picked = prompt("필터할 값을 쉼표로 선택:\n"+uniqueVals.join(", "));
+        if(picked===null) return;
+        filterState[colIndex] = new Set(picked.split(",").map(v=>v.trim()));
+        renderGrid();
+        return;
+      }
+      const current = sortState[colIndex];
+      sortState = {};
+      sortState[colIndex] = !current || current==='desc' ? 'asc' : 'desc';
+      renderGrid();
+    });
+  });
+}
+
+// 도구 및 명령어 기존 구현
+function changeFont(delta){ const f=filesData.find(x=>x.id===activeId); if(!f) return; f.fontSize=Math.max(9,(f.fontSize||13)+delta); renderGrid(); }
+function promptFind(){ const q=prompt('찾을 텍스트 입력:'); if(!q) return; doFind(q); }
+function doFind(q){ const f=filesData.find(x=>x.id===activeId); if(!f) return; const matches=[]; f.rows.forEach((r,ri)=>r.forEach((cell,ci)=>{ if(String(cell).includes(q)) matches.push({r:ri+1,c:ci+1,val:cell}); })); if(!matches.length) alert('없음'); else alert(matches.slice(0,50).map(m=>`R${m.r}C${m.c}: ${m.val}`).join('\n')); }
+function promptReplace(){ const findText=prompt('찾을 텍스트:'); if(findText===null) return; const replaceText=prompt('대체할 텍스트:'); if(replaceText===null) return; doReplace(findText,replaceText); }
+function doReplace(findText,replaceText){ const f=filesData.find(x=>x.id===activeId); if(!f) return; f.history.push(JSON.stringify(f.rows)); f.rows=f.rows.map(row=>row.map(cell=> String(cell).includes(findText)? String(cell).split(findText).join(replaceText):cell )); renderGrid();}
+function undo(){ const f=filesData.find(x=>x.id===activeId); if(!f || f.history.length<2) return; f.history.pop(); f.rows=JSON.parse(f.history[f.history.length-1]); renderGrid(); }
+function downloadActive(){ const f=filesData.find(x=>x.id===activeId); if(!f) return; const ws=XLSX.utils.aoa_to_sheet(f.rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Sheet1'); const ext=f.name.endsWith('.csv')?'csv':'xlsx'; const wbout=XLSX.write(wb,{bookType:ext,type:'array'}); const blob=new Blob([wbout],{type:'application/octet-stream'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name.replace(/\.[^.]+$/,'')+'_edited.'+ext; document.body.appendChild(a); a.click(); a.remove(); }
+function resetActive(){ const f=filesData.find(x=>x.id===activeId); if(!f) return; f.rows=JSON.parse(f.history[0]); f.history=[JSON.stringify(f.rows)]; renderGrid(); }
+async function runCommand(cmd){
+  if(!cmd) return;
+
+  // 1) 기존 명령어: 파일 비교
+  if(cmd.includes("파일1과 파일2를 비교")){
+    const f1 = filesData[0], f2 = filesData[1];
+    if(!f1 || !f2){ alert("파일이 2개 필요합니다."); return; }
+
+    const maxRows = Math.max(f1.rows.length, f2.rows.length);
+    const maxCols = Math.max(
+      f1.rows.reduce((m,r)=>Math.max(m,r.length||0),0),
+      f2.rows.reduce((m,r)=>Math.max(m,r.length||0),0)
+    );
+
+    const diffRows = [];
+    for(let r=0;r<maxRows;r++){
+      const row1 = f1.rows[r]||[];
+      const row2 = f2.rows[r]||[];
+      let isDeleted = !row2.length && row1.length;
+      let isAdded = !row1.length && row2.length;
+
+      const cells = [];
+      for(let c=0;c<maxCols;c++){
+        const val1 = row1[c]||"";
+        const val2 = row2[c]||"";
+        if(isAdded || isDeleted){
+          cells.push({val: val2});
+        } else if(val1 !== val2){
+          cells.push({val: `[파일2] ${val2}, [파일1] ${val1}`, changed:true});
+        } else {
+          cells.push({val: val2});
+        }
+      }
+      diffRows.push({cells, added:isAdded, deleted:isDeleted});
+    }
+
+    const table = document.createElement('table'); table.className='grid';
+    const thead = document.createElement('thead');
+    const htr = document.createElement('tr');
+    htr.appendChild(document.createElement('th')).textContent='#';
+    for(let c=0;c<maxCols;c++){ const th=document.createElement('th'); th.textContent=String.fromCharCode(65+c); htr.appendChild(th);}
+    thead.appendChild(htr); table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    diffRows.forEach((r,ri)=>{
+      const tr = document.createElement('tr');
+      const tdIndex = document.createElement('td'); tdIndex.textContent=ri+1; tdIndex.style.fontWeight='600'; tr.appendChild(tdIndex);
+
+      if(r.deleted) tr.style.backgroundColor = '#d9d9d9';
+      else if(r.added) tr.style.backgroundColor = '#fff59d';
+
+      r.cells.forEach(cell=>{
+        const td = document.createElement('td'); td.textContent = cell.val;
+        if(cell.changed) td.style.backgroundColor = '#ffb74d';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    resultArea.innerHTML = '';
+    resultArea.appendChild(table);
+
+    const legend = document.createElement('div');
+    legend.style.marginTop='8px';
+    legend.innerHTML = `
+      <div><span style="background:#fff59d;padding:2px 6px;border-radius:4px"> </span> 파일2에서 새로 추가된 row → 노란색</div>
+      <div><span style="background:#d9d9d9;padding:2px 6px;border-radius:4px"> </span> 파일1에서 삭제된 row → 회색</div>
+      <div><span style="background:#ffb74d;padding:2px 6px;border-radius:4px"> </span> 변경된 cell → 오렌지색</div>
+    `;
+    resultArea.appendChild(legend);
+
+    return;
+  }
+
+  // 2) 기존 명령어(find)
+  if(cmd.startsWith('find:')){ doFind(cmd.slice(5)); return; }
+
+  // 3) 기존 명령어(replace)
+  const m = cmd.match(/replace\s+(.+?)\s*->\s*(.*)/);
+  if(m){ doReplace(m[1],m[2]); return; }
+
+  // -----------------------------
+  // 4) 자연어 명령어 처리 → Google Cloud API 호출
+  // -----------------------------
+  const f = filesData.find(x=>x.id===activeId);
+  if(!f){
+    alert("활성화된 파일이 없습니다.");
+    return;
+  }
+
+  try{
+    const body = {
+      command: cmd,
+      sheet: {
+        rows: f.rows
+      }
+    };
+
+    // ← 너의 Cloud Run URL 로 변경!
+    const API_URL = "https://excel-ai-824156430566.asia-northeast3.run.app";
+
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    if(!res.ok){
+      alert("AI 서버 오류: " + res.status);
+      return;
+    }
+
+    const data = await res.json();
+
+    // -----------------------------
+    //  서버에서 받은 결과 적용
+    //  type: "edit", rows: [...]
+    // -----------------------------
+    if(data.type === "edit" && Array.isArray(data.rows)){
+      f.history.push(JSON.stringify(f.rows));
+      f.rows = data.rows;
+      renderGrid();
+      return;
+    }
+
+    // 메시지 출력
+    if(data.message){
+      alert(data.message);
+      return;
+    }
+
+    alert("AI가 처리했지만 인식할 수 없는 응답입니다.");
+
+  }catch(err){
+    console.error(err);
+    alert("AI 요청 중 오류 발생: " + err.message);
+  }
+}
+
+window.addEventListener('keydown',(e)=>{ if(e.ctrlKey&&e.key==='f'){ e.preventDefault(); promptFind(); } if(e.ctrlKey&&e.key==='s'){ e.preventDefault(); downloadActive(); }});
+
+}); // DOMContentLoaded
+</script>
+</body>
+</html>
