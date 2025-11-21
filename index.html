@@ -37,7 +37,6 @@
     </div>
   </header>
 
-  <!-- 파일 선택 -->
   <section class="card">
     <div class="row">
       <label for="fileInput" class="btn">파일 선택</label>
@@ -46,7 +45,6 @@
     </div>
   </section>
 
-  <!-- 명령어 입력 -->
   <section class="card">
     <div class="row">
       <input id="cmdInput" class="cmd" placeholder="예: replace old -> new / find:value / 자연어 명령" />
@@ -54,7 +52,6 @@
     </div>
   </section>
 
-  <!-- Output -->
   <section class="card">
     <div id="resultArea" class="grid-wrap"></div>
   </section>
@@ -168,33 +165,47 @@ document.addEventListener("DOMContentLoaded", () => {
       const ai_command = data.ai_command || {};
 
       /* -------------------------
-         JS에서 실제 rows 처리
+         sort 처리
       --------------------------*/
       if(ai_command.action === "sort_column") {
         const colIndex = ai_command.column.charCodeAt(0) - 65;
-        f.rows.sort((a,b)=>{
-          const v1 = a[colIndex] || "";
-          const v2 = b[colIndex] || "";
-          return ai_command.order === "asc" ? v1.localeCompare(v2) : v2.localeCompare(v1);
-        });
+        if(ai_command.order === "asc") {
+          f.rows.sort((a,b)=> (a[colIndex]||"").localeCompare(b[colIndex]||""));
+        } else if(ai_command.order === "desc") {
+          f.rows.sort((a,b)=> (b[colIndex]||"").localeCompare(a[colIndex]||""));
+        }
         renderGrid();
       }
 
+      /* -------------------------
+         replace 처리
+      --------------------------*/
       if(ai_command.action === "replace_value") {
         const colIndex = ai_command.column.charCodeAt(0) - 65;
-        f.rows.forEach(r=>{
+        f.rows = f.rows.map(r=>{
           if(r[colIndex] === ai_command.target) r[colIndex] = ai_command.replacement;
+          return r;
         });
         renderGrid();
       }
 
+      /* -------------------------
+         filter 처리
+      --------------------------*/
       if(ai_command.action === "filter") {
         const colIndex = ai_command.column.charCodeAt(0) - 65;
-        if(ai_command.condition === "contains_only_english_characters") {
-          f.rows = f.rows.filter(row=>{
-            const val = row[colIndex] || "";
-            return /^[A-Za-z\s]+$/.test(val);
-          });
+        if(ai_command.criteria) {
+          const crit = ai_command.criteria;
+
+          // 영어 문자만 남기기
+          if(crit.toLowerCase().includes("english") || crit.includes("FIND")) {
+            f.rows = f.rows.filter(row=>{
+              const val = row[colIndex] || "";
+              return /^[A-Za-z\s]+$/.test(val);
+            });
+          }
+
+          // TODO: 다른 criteria 처리 가능
         }
         renderGrid();
       }
