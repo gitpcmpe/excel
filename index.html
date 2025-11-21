@@ -6,313 +6,210 @@
   <title>Excel/CSV Viewer & Editor</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
-    :root{
-      --bg:#f5f7fb; --card:#ffffff; --accent:#4f46e5; --muted:#6b7280;
-    }
-    body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:linear-gradient(180deg,var(--bg),#eef2ff); margin:0;padding:28px;color:#0f172a}
+    :root{ --bg:#f5f7fb; --card:#ffffff; --accent:#4f46e5; --muted:#6b7280; }
+    body{font-family:Inter, system-ui; background:linear-gradient(180deg,var(--bg),#eef2ff); margin:0;padding:28px;color:#0f172a}
     .container{max-width:1100px;margin:0 auto}
     header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
     h1{font-size:20px;margin:0}
     .subtitle{color:var(--muted);font-size:13px}
-
     .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-bottom:16px}
     .row{display:flex;gap:12px;align-items:center; flex-wrap:wrap;}
-    .col{display:flex;flex-direction:column;gap:8px}
 
     /* File input area */
-    .file-area{display:flex;gap:12px;align-items:center; flex-wrap:wrap;}
-    .btn{background:var(--accent);color:white;padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
-    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(79,70,229,0.12)}
     input[type=file]{display:none}
+    .btn{background:var(--accent);color:white;padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
     .file-list{max-height:120px;overflow:auto;padding:8px;border-radius:8px;border:1px dashed rgba(15,23,42,0.06);background:#fbfbff; display:flex; flex-wrap:wrap; gap:6px;}
-    .file-item{padding:6px 10px;border-radius:8px;background:linear-gradient(180deg,#fff,#fbfbff);display:flex;align-items:center; cursor:pointer; font-size:14px; width:48%;}
+    .file-item{padding:6px 10px;border-radius:8px;background:#fff;display:flex;align-items:center; cursor:pointer; font-size:14px; width:48%;}
     .file-item.active{outline:2px solid rgba(79,70,229,0.12)}
-    .controls{display:flex;gap:8px;align-items:center}
+    .grid-wrap{margin-top:12px;max-height:560px;border-radius:10px;border:1px solid rgba(15,23,42,0.04);overflow:auto;background:#fff}
 
-    /* toolbar */
-    .toolbar{display:flex;gap:8px;align-items:center}
-    .icon-btn{background:#f8fafc;border-radius:8px;padding:8px;border:1px solid rgba(15,23,42,0.03);cursor:pointer}
-
-    /* grid */
-    .grid-wrap{margin-top:12px;border-radius:10px;border:1px solid rgba(15,23,42,0.04);overflow:auto;background:linear-gradient(180deg,#fff,#fcfcff)}
     table.grid{border-collapse:collapse;width:100%;font-size:13px}
     table.grid th, table.grid td{border:1px solid rgba(15,23,42,0.06);padding:4px 6px;min-width:40px;white-space:nowrap}
     table.grid th{background:#fbfbff;font-weight:700; cursor:pointer}
 
-    .small{font-size:12px}
-    .muted{color:var(--muted)}
-
-    /* command input */
-    .cmd-area{display:flex;gap:8px; margin-top:4px;}
     input.cmd{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(15,23,42,0.06)}
 
     footer{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
-
-    @media (max-width:880px){.row{flex-direction:column;align-items:stretch}}
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;color:white;font-weight:700">XL</div>
+      <div style="width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white;display:flex;align-items:center;justify-content:center;font-weight:700">XL</div>
       <div>
-          <h1>Excel / CSV / Text Viewer & Editor</h1>
-          <div class="subtitle">
-          Excel(.xlsx/.xls), CSV, 텍스트(.txt/.doc/.docx) 파일을 빠르게 열어보고 편집, 찾기/바꾸기, 다운로드할 수 있습니다.
-          </div>
+        <h1>Excel / CSV / Text Viewer & Editor</h1>
+        <div class="subtitle">Excel, CSV, TXT 파일을 불러와서 편집하고 명령어 실행이 가능합니다.</div>
       </div>
     </header>
 
     <!-- 파일 선택 영역 -->
     <section class="card">
-      <div class="row file-area">
-        <label class="btn" id="pickBtn">파일 선택</label>
-        <input id="fileInput" type="file" accept=".csv, .xlsx, .xls, .txt, .doc, .docx" multiple />
-        <div class="file-list" id="fileList" aria-live="polite"></div>
+      <div class="row">
+        <!-- label과 file input 연결 (중요!!) -->
+        <label for="fileInput" class="btn">파일 선택</label>
+        <input id="fileInput" type="file" accept=".csv, .xlsx, .xls, .txt" multiple />
+        <div id="fileList" class="file-list"></div>
       </div>
     </section>
 
-    <!-- 명령어 입력 영역 -->
+    <!-- 명령어 입력 -->
     <section class="card">
       <div class="row">
-        <button class="btn" style="pointer-events:none; width:100%;">Command</button>
-      </div>
-      <div class="row">
-        <div class="cmd-area">
-          <input id="cmdInput" class="cmd" placeholder="예: replace old -> new 또는 find:value 또는 자연어 명령어" />
-          <button class="btn ghost" id="cmdRun">실행</button>
-        </div>
+        <input id="cmdInput" class="cmd" placeholder="예: replace old -> new / find:value / 자연어 명령" />
+        <button id="cmdRun" class="btn">실행</button>
       </div>
     </section>
 
-    <!-- Output + Data -->
+    <!-- Output 영역 -->
     <section class="card">
-      <div class="row" style="justify-content:flex-start; align-items:center; gap:12px; margin-bottom:8px;">
-        <button class="btn" style="pointer-events:none;">Output</button>
-        <div class="toolbar">
-          <button class="icon-btn" id="fontDec" title="글자 작게">A-</button>
-          <button class="icon-btn" id="fontInc" title="글자 크게">A+</button>
-          <button class="icon-btn" id="findBtn" title="찾기">🔎 찾기</button>
-          <button class="icon-btn" id="replaceBtn" title="바꾸기">🪄 바꾸기</button>
-          <button class="icon-btn" id="undoBtn" title="되돌리기">⤺ 되돌리기</button>
-          <button class="icon-btn" id="downloadBtn" title="다운로드">⬇️ 다운로드</button>
-          <button class="icon-btn" id="resetBtn" title="초기화">🔁 초기화</button>
-        </div>
-      </div>
-      <div id="resultArea" class="grid-wrap" style="max-height:560px"></div>
+      <div id="resultArea" class="grid-wrap"></div>
     </section>
 
-    <footer class="muted">작동: 파일 선택 → 활성화 → 도구 사용 또는 명령어 실행. (기본 편집 가능)</footer>
+    <footer>파일 선택 → 편집 또는 명령어 실행</footer>
   </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
 
-const filesData = [];
-let activeId = null;
-let fileCounter = 0;
-const fileInput = document.getElementById('fileInput');
-const pickBtn = document.getElementById('pickBtn');
-const fileList = document.getElementById('fileList');
-const resultArea = document.getElementById('resultArea');
-const cmdInput = document.getElementById('cmdInput');
+  const fileInput = document.getElementById("fileInput");
+  const fileList = document.getElementById("fileList");
+  const resultArea = document.getElementById("resultArea");
+  const cmdRun = document.getElementById("cmdRun");
+  const cmdInput = document.getElementById("cmdInput");
 
-let sortState = {};
-let filterState = {};
+  let filesData = [];
+  let activeId = null;
+  let fileCounter = 0;
 
-pickBtn.addEventListener('click', ()=>fileInput.click());
-fileInput.addEventListener('change', handleFiles);
+  /* -------------------------
+     파일 선택 기능
+  --------------------------*/
+  fileInput.addEventListener("change", handleFiles);
 
-const fontDec = document.getElementById('fontDec');
-const fontInc = document.getElementById('fontInc');
-const findBtn = document.getElementById('findBtn');
-const replaceBtn = document.getElementById('replaceBtn');
-const undoBtn = document.getElementById('undoBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const resetBtn = document.getElementById('resetBtn');
-const cmdRun = document.getElementById('cmdRun');
+  function handleFiles(e) {
+    const list = Array.from(e.target.files || []);
+    if (!list.length) return;
 
-fontDec.addEventListener('click', ()=>changeFont(-1));
-fontInc.addEventListener('click', ()=>changeFont(1));
-findBtn.addEventListener('click', ()=>promptFind());
-replaceBtn.addEventListener('click', ()=>promptReplace());
-undoBtn.addEventListener('click', ()=>undo());
-downloadBtn.addEventListener('click', ()=>downloadActive());
-resetBtn.addEventListener('click', ()=>resetActive());
-cmdRun.addEventListener('click', ()=>runCommand(cmdInput.value.trim()));
+    list.forEach(file => {
+      const id = ++fileCounter;
+      const reader = new FileReader();
 
-function handleFiles(e){
-  const list = Array.from(e.target.files || []);
-  if(!list.length) return;
-  pickBtn.textContent = '파일 추가 선택';
-  list.forEach(file=>{
-    if(filesData.some(f=>f.name===file.name)) return;
-    const id = ++fileCounter;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-      let workbook;
-      try{
-        if(file.name.endsWith('.csv')) workbook = XLSX.read(ev.target.result,{type:'string'});
-        else workbook = XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
-      }catch(err){ alert('파일 읽기 오류: '+file.name); return; }
-      const firstSheet = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[firstSheet];
-      const json = XLSX.utils.sheet_to_json(sheet,{header:1,raw:false});
-      filesData.push({id,name:file.name,rows:json,history:[JSON.stringify(json)],fontSize:13,editable:true});
-      renderFileList();
-      if(filesData.length===1) setActive(filesData[0].id);
-    };
-    if(file.name.endsWith('.csv')) reader.readAsText(file,'utf-8'); else reader.readAsArrayBuffer(file);
-  });
-  fileInput.value='';
-}
-
-function renderFileList(){
-  fileList.innerHTML='';
-  filesData.forEach((f,i)=>{
-    const div=document.createElement('div');
-    div.className='file-item'+(f.id===activeId?' active':'');
-    div.innerHTML=`<span>file#${i+1} ${f.name}</span>`;
-    div.addEventListener('click', ()=>setActive(f.id));
-    fileList.appendChild(div);
-  });
-}
-
-function setActive(id){
-  activeId = id;
-  renderFileList();
-  renderGrid();
-}
-
-function applySortAndFilter(rows){
-  let newRows = [...rows];
-  Object.keys(filterState).forEach(c=>{
-    const allowed = filterState[c];
-    newRows = newRows.filter(r => allowed.has(r[c]));
-  });
-  const col = Object.keys(sortState)[0];
-  if(col!==undefined){
-    const dir = sortState[col];
-    newRows.sort((a,b)=>{
-      const x=a[col]??"", y=b[col]??"";
-      if(x<y) return dir==='asc'?-1:1;
-      if(x>y) return dir==='asc'?1:-1;
-      return 0;
-    });
-  }
-  return newRows;
-}
-
-function renderGrid(){
-  resultArea.innerHTML='';
-  const f = filesData.find(x=>x.id===activeId);
-  if(!f){ resultArea.innerHTML='<div style="padding:16px" class="muted">활성화된 파일이 없습니다.</div>'; return; }
-
-  const table=document.createElement('table'); table.className='grid';
-  const rows=applySortAndFilter(f.rows);
-  const cols=rows.reduce((m,r)=>Math.max(m,r.length||0),0);
-
-  const thead=document.createElement('thead'); 
-  const htr=document.createElement('tr');
-  const thIndex=document.createElement('th'); thIndex.textContent='#'; htr.appendChild(thIndex);
-  for(let c=0;c<cols;c++){ const th=document.createElement('th'); th.textContent=String.fromCharCode(65+c); htr.appendChild(th);}
-  thead.appendChild(htr); table.appendChild(thead);
-
-  const tbody=document.createElement('tbody');
-  rows.forEach((r,ri)=>{
-    const tr=document.createElement('tr');
-    const tdIndex=document.createElement('td'); tdIndex.textContent=ri+1; tdIndex.style.fontWeight='600'; tr.appendChild(tdIndex);
-    for(let c=0;c<cols;c++){
-      const td=document.createElement('td'); td.textContent=(r[c]!==undefined?r[c]:''); td.contentEditable=f.editable;
-      td.addEventListener('input', ()=>{ f.rows[ri][c]=td.textContent; });
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  table.style.fontSize=(f.fontSize||13)+'px';
-  resultArea.appendChild(table);
-
-  attachHeaderEvents(table, cols);
-}
-
-function attachHeaderEvents(table, cols){
-  const headers = table.querySelectorAll('th');
-  headers.forEach((th,index)=>{
-    if(index===0){
-      th.addEventListener('click', e=>{
-        if(e.ctrlKey){
-          const f=filesData.find(x=>x.id===activeId); if(!f) return;
-          const uniqueVals = [...new Set(f.rows.map(r=>r[0]))];
-          const picked = prompt("필터할 값을 쉼표로 선택:\n"+uniqueVals.join(", "));
-          if(picked===null) return;
-          filterState[0] = new Set(picked.split(",").map(v=>v.trim()));
-          renderGrid();
+      reader.onload = ev => {
+        let workbook;
+        try {
+          if (file.name.endsWith(".csv"))
+            workbook = XLSX.read(ev.target.result, { type: "string" });
+          else
+            workbook = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
+        } catch (err) {
+          alert("파일 읽기 오류: " + file.name);
+          return;
         }
-      });
-      return;
-    }
-    th.addEventListener('click', e=>{
-      const colIndex=index-1;
-      const f=filesData.find(x=>x.id===activeId); if(!f) return;
-      if(e.ctrlKey){
-        const uniqueVals = [...new Set(f.rows.map(r=>r[colIndex]))];
-        const picked = prompt("필터할 값을 쉼표로 선택:\n"+uniqueVals.join(", "));
-        if(picked===null) return;
-        filterState[colIndex] = new Set(picked.split(",").map(v=>v.trim()));
-        renderGrid();
-        return;
-      }
-      const current = sortState[colIndex];
-      sortState = {};
-      sortState[colIndex] = !current || current==='desc' ? 'asc' : 'desc';
-      renderGrid();
-    });
-  });
-}
 
-function changeFont(delta){ const f=filesData.find(x=>x.id===activeId); if(!f) return; f.fontSize=Math.max(9,(f.fontSize||13)+delta); renderGrid(); }
-function promptFind(){ const q=prompt('찾을 텍스트 입력:'); if(!q) return; doFind(q); }
-function doFind(q){ const f=filesData.find(x=>x.id===activeId); if(!f) return; const matches=[]; f.rows.forEach((r,ri)=>r.forEach((cell,ci)=>{ if(String(cell).includes(q)) matches.push({r:ri+1,c:ci+1,val:cell}); })); if(!matches.length) alert('없음'); else alert(matches.slice(0,50).map(m=>`R${m.r}C${m.c}: ${m.val}`).join('\n')); }
-function promptReplace(){ const findText=prompt('찾을 텍스트:'); if(findText===null) return; const replaceText=prompt('대체할 텍스트:'); if(replaceText===null) return; doReplace(findText,replaceText); }
-function doReplace(findText,replaceText){ const f=filesData.find(x=>x.id===activeId); if(!f) return; f.history.push(JSON.stringify(f.rows)); f.rows=f.rows.map(row=>row.map(cell=> String(cell).includes(findText)? String(cell).split(findText).join(replaceText):cell )); renderGrid();}
-function undo(){ const f=filesData.find(x=>x.id===activeId); if(!f || f.history.length<2) return; f.history.pop(); f.rows=JSON.parse(f.history[f.history.length-1]); renderGrid(); }
-function downloadActive(){ const f=filesData.find(x=>x.id===activeId); if(!f) return; const ws=XLSX.utils.aoa_to_sheet(f.rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Sheet1'); const ext=f.name.endsWith('.csv')?'csv':'xlsx'; const wbout=XLSX.write(wb,{bookType:ext,type:'array'}); const blob=new Blob([wbout],{type:'application/octet-stream'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name.replace(/\.[^.]+$/,'')+'_edited.'+ext; document.body.appendChild(a); a.click(); a.remove(); }
-function resetActive(){ const f=filesData.find(x=>x.id===activeId); if(!f) return; f.rows=JSON.parse(f.history[0]); f.history=[JSON.stringify(f.rows)]; renderGrid(); }
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
-async function runCommand(cmd){
-  if(!cmd) return;
-  const f = filesData.find(x=>x.id===activeId);
-  if(!f){ alert("활성화된 파일이 없습니다."); return; }
+        filesData.push({
+          id,
+          name: file.name,
+          rows,
+          history: [JSON.stringify(rows)],
+        });
 
-  try{
-    const body = { command: cmd, sheet: { rows: f.rows } };
-    const API_URL = "https://excel-ai-824156430566.asia-northeast3.run.app";
+        renderFileList();
+        if (!activeId) setActive(id);
+      };
 
-    const res = await fetch(API_URL + "/ai-command", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      if (file.name.endsWith(".csv")) reader.readAsText(file, "utf-8");
+      else reader.readAsArrayBuffer(file);
     });
 
-    if(!res.ok){ alert("AI 서버 오류: " + res.status); return; }
-
-    const data = await res.json();
-    if(data.type === "edit" && Array.isArray(data.rows)){
-      f.history.push(JSON.stringify(f.rows));
-      f.rows = data.rows;
-      renderGrid();
-      if(data.message) alert("AI: " + data.message);
-      return;
-    }
-
-    if(data.message){ alert(data.message); return; }
-    alert("AI가 처리했지만 인식할 수 없는 응답입니다.");
-  }catch(err){
-    console.error(err);
-    alert("AI 요청 중 오류 발생: " + err.message);
+    fileInput.value = "";
   }
-}
 
-window.addEventListener('keydown',(e)=>{ 
-  if(e.ctrlKey&&e.key==='f'){
+  function renderFileList() {
+    fileList.innerHTML = "";
+    filesData.forEach(f => {
+      const item = document.createElement("div");
+      item.className = "file-item" + (f.id === activeId ? " active" : "");
+      item.textContent = f.name;
+      item.onclick = () => setActive(f.id);
+      fileList.appendChild(item);
+    });
+  }
+
+  function setActive(id) {
+    activeId = id;
+    renderFileList();
+    renderGrid();
+  }
+
+  function renderGrid() {
+    const f = filesData.find(x => x.id === activeId);
+    if (!f) return;
+
+    resultArea.innerHTML = "";
+    const table = document.createElement("table");
+    table.className = "grid";
+
+    const rows = f.rows;
+    const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
+
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    trh.innerHTML = "<th>#</th>" + [...Array(cols)].map((_, i) => `<th>${String.fromCharCode(65+i)}</th>`).join("");
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    rows.forEach((r, ri) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${ri+1}</td>` +
+        [...Array(cols)].map((_, ci) => `<td contenteditable="true">${r[ci] || ""}</td>`).join("");
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    resultArea.appendChild(table);
+  }
+
+  /* -------------------------
+     명령어 실행 → Cloud Run API
+  --------------------------*/
+  cmdRun.addEventListener("click", async () => {
+    const cmd = cmdInput.value.trim();
+    if (!cmd) return;
+
+    const f = filesData.find(x => x.id === activeId);
+    if (!f) return alert("활성화된 파일이 없습니다.");
+
+    try {
+      const res = await fetch("https://excel-ai-824156430566.asia-northeast3.run.app/ai-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: cmd, sheet: { rows: f.rows } })
+      });
+
+      const data = await res.json();
+      console.log("AI 응답:", data);
+
+      if (data.rows) {
+        f.history.push(JSON.stringify(f.rows));
+        f.rows = data.rows;
+        renderGrid();
+      } else if (data.message) {
+        alert("AI: " + data.message);
+      } else {
+        alert("AI 응답을 이해할 수 없습니다.");
+      }
+
+    } catch (err) {
+      alert("AI 오류: " + err.message);
+    }
+  });
+
+});
+</script>
+
+</body>
+</html>
