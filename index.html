@@ -64,6 +64,23 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+
+  /* -------------------------
+     비밀번호 확인
+  --------------------------*/
+  if (!sessionStorage.getItem("authorized")) {
+    const password = "pst";
+    let input = "";
+    while (input !== password) {
+      input = prompt("비밀번호를 입력하세요:");
+      if (input === null) {
+        document.body.innerHTML = "<h2>접근이 취소되었습니다.</h2>";
+        throw new Error("접근 취소");
+      }
+    }
+    sessionStorage.setItem("authorized", "true");
+  }
+
   const fileInput = document.getElementById("fileInput");
   const fileList = document.getElementById("fileList");
   const resultArea = document.getElementById("resultArea");
@@ -74,6 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeId = null;
   let fileCounter = 0;
 
+  /* -------------------------
+     파일 선택
+  --------------------------*/
   fileInput.addEventListener("change", handleFiles);
 
   function handleFiles(e){
@@ -156,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("https://excel-ai-824156430566.asia-northeast3.run.app/ai-command", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ command: cmd })  // sheet 제거
+        body:JSON.stringify({ command: cmd })
       });
 
       const data = await res.json();
